@@ -22,8 +22,8 @@ app.get('/', (req, res) => {
   res.json({ message: 'Welcome to DriveCare API' });
 });
 
-// API Routes (will be added later)
-// app.use('/api/auth', require('./routes/auth'));
+// API Routes
+app.use('/api/auth', require('./routes/auth'));
 // app.use('/api/cars', require('./routes/cars'));
 // app.use('/api/expenses', require('./routes/expenses'));
 // app.use('/api/bookings', require('./routes/bookings'));
