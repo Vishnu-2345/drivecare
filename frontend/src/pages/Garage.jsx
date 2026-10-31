@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { Car, Plus, Trash2, Search, X } from 'lucide-react';
 
+const MAX_CAR_YEAR = new Date().getFullYear() + 1;
+
 const Garage = () => {
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,10 +20,6 @@ const Garage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    fetchCars();
-  }, []);
-
   const fetchCars = async () => {
     try {
       const response = await api.get('/cars');
@@ -34,9 +32,14 @@ const Garage = () => {
     }
   };
 
+  useEffect(() => {
+    fetchCars();
+  }, []);
+
   const handleVinLookup = async () => {
-    if (vinInput.length !== 17) {
-      setError('VIN must be exactly 17 characters');
+    const cleanVin = vinInput.trim().toUpperCase();
+    if (cleanVin.length < 11 || cleanVin.length > 17) {
+      setError('VIN must be between 11 and 17 characters');
       return;
     }
 
@@ -44,7 +47,7 @@ const Garage = () => {
     setError('');
 
     try {
-      const response = await api.get(`/cars/decode/${vinInput}`);
+      const response = await api.get(`/cars/decode/${cleanVin}`);
       setCarData({
         vin: response.data.vin,
         make: response.data.make,
@@ -66,7 +69,10 @@ const Garage = () => {
     setSuccess('');
 
     try {
-      const response = await api.post('/cars', carData);
+      const response = await api.post('/cars', {
+        ...carData,
+        year: parseInt(carData.year, 10)
+      });
       setCars([response.data, ...cars]);
       setSuccess('Vehicle added successfully!');
       setTimeout(() => {
@@ -220,12 +226,12 @@ const Garage = () => {
                     value={vinInput}
                     onChange={(e) => setVinInput(e.target.value.toUpperCase())}
                     className="input-field flex-1"
-                    placeholder="Enter 17-character VIN"
+                    placeholder="Enter 11 to 17-character VIN"
                     maxLength={17}
                   />
                   <button
                     onClick={handleVinLookup}
-                    disabled={vinLoading || vinInput.length !== 17}
+                    disabled={vinLoading || vinInput.trim().length < 11 || vinInput.trim().length > 17}
                     className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {vinLoading ? (
@@ -236,7 +242,7 @@ const Garage = () => {
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Enter VIN to auto-fill vehicle details
+                  Enter VIN (11-17 chars) to auto-fill vehicle details
                 </p>
               </div>
 
@@ -251,7 +257,8 @@ const Garage = () => {
                     value={carData.vin}
                     onChange={(e) => setCarData({ ...carData, vin: e.target.value.toUpperCase() })}
                     className="input-field"
-                    placeholder="17-character VIN"
+                    placeholder="11 to 17-character VIN"
+                    minLength={11}
                     maxLength={17}
                     required
                   />
@@ -296,7 +303,7 @@ const Garage = () => {
                     className="input-field"
                     placeholder="e.g., 2020"
                     min="1900"
-                    max={new Date().getFullYear() + 1}
+                    max={MAX_CAR_YEAR}
                     required
                   />
                 </div>

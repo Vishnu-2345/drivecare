@@ -59,8 +59,13 @@ const addExpense = async (req, res) => {
     const { car, category, amount, description, date } = req.body;
 
     // Validation
-    if (!car || !category || !amount) {
+    if (!car || !category || amount === undefined || amount === null) {
       return res.status(400).json({ message: 'Please provide car, category, and amount' });
+    }
+
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      return res.status(400).json({ message: 'Amount must be a positive number' });
     }
 
     // Verify the car belongs to the user
@@ -77,13 +82,13 @@ const addExpense = async (req, res) => {
     const expense = await Expense.create({
       car,
       category,
-      amount,
-      description,
+      amount: parsedAmount,
+      description: description ? description.trim() : '',
       date: date || Date.now()
     });
 
     // Populate car details
-    await expense.populate('car', 'make model year');
+    await expense.populate('car', 'make model year nickname');
 
     res.status(201).json(expense);
   } catch (error) {
@@ -104,7 +109,7 @@ const deleteExpense = async (req, res) => {
     }
 
     // Check if user owns the car (and therefore the expense)
-    if (expense.car.user.toString() !== req.user._id.toString()) {
+    if (expense.car && expense.car.user && expense.car.user.toString() !== req.user._id.toString()) {
       return res.status(401).json({ message: 'Not authorized to delete this expense' });
     }
 

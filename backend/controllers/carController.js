@@ -1,5 +1,7 @@
 const axios = require('axios');
 const Car = require('../models/Car');
+const Expense = require('../models/Expense');
+const Booking = require('../models/Booking');
 
 // @desc    Decode VIN using NHTSA API
 // @route   GET /api/cars/decode/:vin
@@ -7,35 +9,39 @@ const Car = require('../models/Car');
 const decodeVIN = async (req, res) => {
   try {
     const { vin } = req.params;
+    const cleanVin = (vin || '').trim();
 
-    // Validate VIN length
-    if (vin.length !== 17) {
-      return res.status(400).json({ message: 'VIN must be exactly 17 characters' });
+    // Validate VIN length (NHTSA supports 11 to 17 character VINs)
+    if (cleanVin.length < 11 || cleanVin.length > 17) {
+      return res.status(400).json({ message: 'VIN must be between 11 and 17 characters' });
     }
 
     // Call NHTSA API
     const response = await axios.get(
-      `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/${vin}?format=json`
+      `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/${encodeURIComponent(cleanVin)}?format=json`
     );
 
-    const results = response.data.Results;
+    const results = response.data?.Results || [];
 
     // Extract relevant data
-    const make = results.find(item => item.Variable === 'Make')?.Value || 'Unknown';
-    const model = results.find(item => item.Variable === 'Model')?.Value || 'Unknown';
-    const year = results.find(item => item.Variable === 'Model Year')?.Value || new Date().getFullYear();
+    const make = results.find(item => item.Variable === 'Make')?.Value;
+    const model = results.find(item => item.Variable === 'Model')?.Value;
+    const yearValue = results.find(item => item.Variable === 'Model Year')?.Value;
+    const year = yearValue ? parseInt(yearValue, 10) : new Date().getFullYear();
 
-    // Check for errors in VIN
-    const errorCode = results.find(item => item.Variable === 'Error Code')?.Value;
-    if (errorCode && errorCode !== '0') {
-      return res.status(400).json({ message: 'Invalid VIN or unable to decode' });
+    // Check if at least make was decoded
+    if (!make || make.trim() === '') {
+      return res.status(400).json({ message: 'Invalid VIN or unable to decode vehicle details' });
     }
 
+    const series = results.find(item => item.Variable === 'Series')?.Value;
+    const resolvedModel = model && model.trim() !== '' ? model.trim() : (series && series.trim() !== '' ? series.trim() : '');
+
     res.json({
-      vin: vin.toUpperCase(),
-      make,
-      model,
-      year: parseInt(year)
+      vin: cleanVin.toUpperCase(),
+      make: make.trim(),
+      model: resolvedModel,
+      year: isNaN(year) ? new Date().getFullYear() : year
     });
   } catch (error) {
     console.error('VIN decode error:', error);
@@ -68,8 +74,19 @@ const addCar = async (req, res) => {
       return res.status(400).json({ message: 'Please provide VIN, make, model, and year' });
     }
 
+    const cleanVin = vin.trim().toUpperCase();
+    if (cleanVin.length < 11 || cleanVin.length > 17) {
+      return res.status(400).json({ message: 'VIN must be between 11 and 17 characters' });
+    }
+
+    const parsedYear = parseInt(year, 10);
+    const maxYear = new Date().getFullYear() + 1;
+    if (isNaN(parsedYear) || parsedYear < 1900 || parsedYear > maxYear) {
+      return res.status(400).json({ message: `Year must be between 1900 and ${maxYear}` });
+    }
+
     // Check if car already exists for this user
-    const carExists = await Car.findOne({ user: req.user._id, vin: vin.toUpperCase() });
+    const carExists = await Car.findOne({ user: req.user._id, vin: cleanVin });
     if (carExists) {
       return res.status(400).json({ message: 'This car is already in your garage' });
     }
@@ -77,11 +94,11 @@ const addCar = async (req, res) => {
     // Create car
     const car = await Car.create({
       user: req.user._id,
-      vin: vin.toUpperCase(),
-      make,
-      model,
-      year,
-      nickname
+      vin: cleanVin,
+      make: make.trim(),
+      model: model.trim(),
+      year: parsedYear,
+      nickname: nickname ? nickname.trim() : undefined
     });
 
     res.status(201).json(car);
@@ -107,8 +124,12 @@ const deleteCar = async (req, res) => {
       return res.status(401).json({ message: 'Not authorized to delete this car' });
     }
 
+    // Cascade delete associated expenses and bookings
+    await Expense.deleteMany({ car: car._id });
+    await Booking.deleteMany({ car: car._id });
+
     await car.deleteOne();
-    res.json({ message: 'Car deleted successfully' });
+    res.json({ message: 'Car and associated records deleted successfully' });
   } catch (error) {
     console.error('Delete car error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

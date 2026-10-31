@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
 import { Plus, Trash2, X, Calendar as CalendarIcon, Clock } from 'lucide-react';
 
@@ -8,6 +8,15 @@ const STATUS_COLORS = {
   Confirmed: 'bg-blue-100 text-blue-800',
   Completed: 'bg-green-100 text-green-800',
   Cancelled: 'bg-red-100 text-red-800'
+};
+
+const getMinDateTime = () => {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const year = tomorrow.getFullYear();
+  const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  const day = String(tomorrow.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const Bookings = () => {
@@ -25,10 +34,6 @@ const Bookings = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     try {
       const [bookingsRes, carsRes] = await Promise.all([
@@ -45,13 +50,26 @@ const Bookings = () => {
     }
   };
 
+  useEffect(() => {
+    fetchData();
+  }, []);
+
   const handleAddBooking = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
+    if (!bookingData.scheduledDate || !bookingData.scheduledTime) {
+      setError('Please provide both date and time for the appointment');
+      return;
+    }
+
     // Combine date and time
     const scheduledDate = new Date(`${bookingData.scheduledDate}T${bookingData.scheduledTime}`);
+    if (isNaN(scheduledDate.getTime())) {
+      setError('Please provide a valid date and time');
+      return;
+    }
 
     try {
       const response = await api.post('/bookings', {
@@ -111,22 +129,26 @@ const Bookings = () => {
     setSuccess('');
   };
 
-  // Separate bookings into upcoming and past
-  const now = new Date();
-  const upcomingBookings = bookings.filter(
-    (booking) => new Date(booking.scheduledDate) >= now && booking.status !== 'Completed' && booking.status !== 'Cancelled'
-  );
-  const pastBookings = bookings.filter(
-    (booking) => new Date(booking.scheduledDate) < now || booking.status === 'Completed' || booking.status === 'Cancelled'
-  );
+  // Reference timestamp initialized on mount
+  const [mountTime] = useState(() => Date.now());
 
-  // Set minimum date and time for the booking form
-  const getMinDateTime = () => {
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
-  };
+  // Separate bookings into upcoming and past
+  const { upcomingBookings, pastBookings } = useMemo(() => {
+    return {
+      upcomingBookings: bookings.filter(
+        (booking) =>
+          new Date(booking.scheduledDate).getTime() >= mountTime &&
+          booking.status !== 'Completed' &&
+          booking.status !== 'Cancelled'
+      ),
+      pastBookings: bookings.filter(
+        (booking) =>
+          new Date(booking.scheduledDate).getTime() < mountTime ||
+          booking.status === 'Completed' ||
+          booking.status === 'Cancelled'
+      )
+    };
+  }, [bookings, mountTime]);
 
   if (loading) {
     return (
@@ -186,7 +208,7 @@ const Bookings = () => {
                     <div>
                       <h3 className="font-semibold text-gray-800">{booking.serviceType}</h3>
                       <p className="text-sm text-gray-600">
-                        {booking.car?.year} {booking.car?.make} {booking.car?.model}
+                        {booking.car ? `${booking.car.year} ${booking.car.make} ${booking.car.model}` : 'Vehicle'}
                       </p>
                     </div>
                   </div>
@@ -273,7 +295,7 @@ const Bookings = () => {
                       </span>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {booking.car?.make} {booking.car?.model} • {new Date(booking.scheduledDate).toLocaleDateString()}
+                      {booking.car ? `${booking.car.make} ${booking.car.model}` : 'Vehicle'} • {new Date(booking.scheduledDate).toLocaleDateString()}
                     </p>
                   </div>
                   <button

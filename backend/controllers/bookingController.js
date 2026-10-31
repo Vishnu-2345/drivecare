@@ -71,8 +71,15 @@ const createBooking = async (req, res) => {
       });
     }
 
-    // Validate scheduled date is in the future
-    if (new Date(scheduledDate) < new Date()) {
+    // Validate scheduled date is a valid date and in the future
+    const parsedDate = new Date(scheduledDate);
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ 
+        message: 'Invalid scheduled date' 
+      });
+    }
+
+    if (parsedDate < new Date()) {
       return res.status(400).json({ 
         message: 'Scheduled date must be in the future' 
       });
@@ -83,8 +90,8 @@ const createBooking = async (req, res) => {
       user: req.user._id,
       car,
       serviceType,
-      description,
-      scheduledDate
+      description: description ? description.trim() : '',
+      scheduledDate: parsedDate
     });
 
     // Populate car details
@@ -116,17 +123,27 @@ const updateBooking = async (req, res) => {
     }
 
     // Update fields if provided
-    if (status) booking.status = status;
+    if (status) {
+      const allowedStatuses = ['Pending', 'Confirmed', 'Completed', 'Cancelled'];
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({ message: 'Invalid booking status' });
+      }
+      booking.status = status;
+    }
     if (serviceType) booking.serviceType = serviceType;
-    if (description !== undefined) booking.description = description;
+    if (description !== undefined) booking.description = description ? description.trim() : '';
     if (scheduledDate) {
+      const parsedDate = new Date(scheduledDate);
+      if (isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid scheduled date' });
+      }
       // Validate scheduled date is in the future
-      if (new Date(scheduledDate) < new Date()) {
+      if (parsedDate < new Date()) {
         return res.status(400).json({ 
           message: 'Scheduled date must be in the future' 
         });
       }
-      booking.scheduledDate = scheduledDate;
+      booking.scheduledDate = parsedDate;
     }
 
     await booking.save();

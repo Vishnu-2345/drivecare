@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { Plus, Trash2, X, TrendingUp } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 const COLORS = {
   Fuel: '#3b82f6',
@@ -14,6 +14,8 @@ const COLORS = {
 
 const CATEGORIES = ['Fuel', 'Repair', 'Insurance', 'Maintenance', 'Registration', 'Other'];
 
+const getTodayDateString = () => new Date().toISOString().split('T')[0];
+
 const Expenses = () => {
   const [expenses, setExpenses] = useState([]);
   const [cars, setCars] = useState([]);
@@ -25,14 +27,10 @@ const Expenses = () => {
     category: 'Fuel',
     amount: '',
     description: '',
-    date: new Date().toISOString().split('T')[0]
+    date: getTodayDateString()
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const fetchData = async () => {
     try {
@@ -49,6 +47,10 @@ const Expenses = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleAddExpense = async (e) => {
     e.preventDefault();
@@ -92,7 +94,7 @@ const Expenses = () => {
       category: 'Fuel',
       amount: '',
       description: '',
-      date: new Date().toISOString().split('T')[0]
+      date: getTodayDateString()
     });
     setError('');
     setSuccess('');
@@ -261,7 +263,7 @@ const Expenses = () => {
                     <span className="font-semibold text-gray-800">{expense.category}</span>
                     <span className="text-gray-500">•</span>
                     <span className="text-gray-600">
-                      {expense.car?.make} {expense.car?.model}
+                      {expense.car ? `${expense.car.make} ${expense.car.model}` : 'Vehicle'}
                     </span>
                   </div>
                   {expense.description && (

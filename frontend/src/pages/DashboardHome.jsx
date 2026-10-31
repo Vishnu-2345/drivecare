@@ -12,10 +12,6 @@ const DashboardHome = () => {
   });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
   const fetchDashboardData = async () => {
     try {
       const [carsRes, expensesRes, bookingsRes] = await Promise.all([
@@ -25,12 +21,15 @@ const DashboardHome = () => {
       ]);
 
       const totalExpenses = expensesRes.data.reduce(
-        (sum, expense) => sum + expense.amount,
+        (sum, expense) => sum + (expense.amount || 0),
         0
       );
 
+      const now = new Date();
       const upcomingBookings = bookingsRes.data.filter(
-        (booking) => new Date(booking.scheduledDate) > new Date() && booking.status === 'Pending'
+        (booking) =>
+          new Date(booking.scheduledDate) >= now &&
+          (booking.status === 'Pending' || booking.status === 'Confirmed')
       ).length;
 
       setStats({
@@ -45,6 +44,10 @@ const DashboardHome = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
   if (loading) {
     return (
@@ -134,7 +137,7 @@ const DashboardHome = () => {
                 <div>
                   <p className="font-medium text-gray-800">{expense.category}</p>
                   <p className="text-sm text-gray-600">
-                    {expense.car?.make} {expense.car?.model}
+                    {expense.car ? `${expense.car.make} ${expense.car.model}` : 'Vehicle'}
                   </p>
                 </div>
                 <div className="text-right">
