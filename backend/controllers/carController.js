@@ -136,9 +136,73 @@ const deleteCar = async (req, res) => {
   }
 };
 
+// @desc    Get safety recalls for a specific car
+// @route   GET /api/cars/:id/recalls
+// @access  Private
+const getCarRecalls = async (req, res) => {
+  try {
+    const car = await Car.findById(req.params.id);
+    if (!car) {
+      return res.status(404).json({ message: 'Car not found' });
+    }
+
+    if (car.user.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: 'Not authorized to view recalls for this car' });
+    }
+
+    const { make, model, year } = car;
+    const response = await axios.get(
+      `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${year}`,
+      { timeout: 8000 }
+    );
+
+    const count = response.data?.Count || 0;
+    const results = response.data?.results || [];
+
+    res.json({
+      carId: car._id,
+      make,
+      model,
+      year,
+      count,
+      recalls: results
+    });
+  } catch (error) {
+    console.error('Fetch recalls error:', error.message);
+    res.status(500).json({ message: 'Error retrieving recalls from NHTSA', count: 0, recalls: [] });
+  }
+};
+
+// @desc    Check safety recalls by make, model, year
+// @route   GET /api/cars/recalls/check
+// @access  Private
+const checkRecallsBySpecs = async (req, res) => {
+  try {
+    const { make, model, year } = req.query;
+    if (!make || !model || !year) {
+      return res.status(400).json({ message: 'Please provide make, model, and year' });
+    }
+
+    const response = await axios.get(
+      `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${year}`,
+      { timeout: 8000 }
+    );
+
+    res.json({
+      count: response.data?.Count || 0,
+      recalls: response.data?.results || []
+    });
+  } catch (error) {
+    console.error('Check recalls error:', error.message);
+    res.status(500).json({ count: 0, recalls: [] });
+  }
+};
+
 module.exports = {
   decodeVIN,
   getCars,
   addCar,
-  deleteCar
+  deleteCar,
+  getCarRecalls,
+  checkRecallsBySpecs
 };

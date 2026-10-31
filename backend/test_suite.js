@@ -141,6 +141,14 @@ const runTests = async () => {
     const getCarsRes = await client.get('/api/cars', authHeaders);
     assert(getCarsRes.status === 200 && getCarsRes.data.length >= 1, 'GET /api/cars returns cars list');
 
+    // TEST 14B: Get Car Safety Recalls from NHTSA
+    const recallsRes = await client.get(`/api/cars/${carId}/recalls`, authHeaders);
+    assert(recallsRes.status === 200 && typeof recallsRes.data.count === 'number', 'GET /api/cars/:id/recalls returns NHTSA recall data');
+
+    // TEST 14C: Check Recalls by Specs
+    const checkRecallsRes = await client.get('/api/cars/recalls/check?make=BMW&model=X3&year=2011', authHeaders);
+    assert(checkRecallsRes.status === 200 && checkRecallsRes.data.count >= 1, 'GET /api/cars/recalls/check returns NHTSA recalls for BMW X3');
+
     // TEST 15: Add Expense
     const expenseRes = await client.post('/api/expenses', {
       car: carId,
